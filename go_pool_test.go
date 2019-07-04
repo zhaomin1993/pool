@@ -1,7 +1,6 @@
 package pool
 
 import (
-	"fmt"
 	"log"
 	"runtime"
 	"testing"
@@ -14,7 +13,7 @@ type Score struct {
 
 func (s *Score) Do() {
 	if s.Num%10000 == 0 {
-		fmt.Println("num:", s.Num)
+		log.Println("num:", s.Num)
 	}
 	time.Sleep(time.Millisecond * 10)
 }
@@ -27,7 +26,7 @@ func TestWorkerPool_Run(t *testing.T) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Println(r)
+				log.Println(r)
 			}
 		}()
 		for i := 1; i <= datanum; i++ {
@@ -37,10 +36,10 @@ func TestWorkerPool_Run(t *testing.T) {
 		p.Wait()
 		p.Stop()
 		log.Println("stop over.....")
-		fmt.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
+		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
 	}()
 	for {
-		fmt.Println("runtime.NumGoroutine() :", runtime.NumGoroutine())
+		log.Println("runtime.NumGoroutine() :", runtime.NumGoroutine())
 		time.Sleep(1 * time.Second)
 	}
 	//time.Sleep(5 * time.Second)
