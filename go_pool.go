@@ -22,12 +22,12 @@ type Job interface {
 
 // --------------------------- Worker ---------------------
 type worker struct {
-	JobQueue chan Job
+	jobQueue chan Job
 	stop     chan struct{}
 }
 
 func newWorker() worker {
-	return worker{JobQueue: make(chan Job), stop: make(chan struct{})}
+	return worker{jobQueue: make(chan Job), stop: make(chan struct{})}
 }
 func (w *worker) run(wq chan *worker, wg *sync.WaitGroup) {
 	wq <- w
@@ -35,14 +35,14 @@ func (w *worker) run(wq chan *worker, wg *sync.WaitGroup) {
 	go func() {
 		for {
 			select {
-			case job := <-w.JobQueue:
+			case job := <-w.jobQueue:
 				if job != nil {
 					job.Do()
 					wq <- w
 				} else {
 					wg.Done()
 					close(w.stop)
-					close(w.JobQueue)
+					close(w.jobQueue)
 					return
 				}
 			case <-w.stop: //由于select的伪随机性，stop不一定会执行，导致stop没有即时性
@@ -56,7 +56,7 @@ func (w *worker) run(wq chan *worker, wg *sync.WaitGroup) {
 func (w *worker) close() {
 	w.stop <- struct{}{}
 	close(w.stop)
-	close(w.JobQueue)
+	close(w.jobQueue)
 }
 
 // --------------------------- WorkerPool ---------------------
@@ -66,7 +66,7 @@ type WorkerPool struct {
 	wg          *sync.WaitGroup
 	stop        chan struct{}
 	JobQueue    chan Job
-	WorkerQueue chan *worker
+	workerQueue chan *worker
 }
 
 func NewWorkerPool(workerlen int) *WorkerPool {
@@ -76,22 +76,22 @@ func NewWorkerPool(workerlen int) *WorkerPool {
 		wg:          &sync.WaitGroup{},
 		stop:        make(chan struct{}),
 		JobQueue:    make(chan Job, workerlen),
-		WorkerQueue: make(chan *worker, workerlen),
+		workerQueue: make(chan *worker, workerlen),
 	}
 }
 func (wp *WorkerPool) Run() {
 	//初始化worker
 	for i := 0; i < wp.workerlen; i++ {
 		worker := newWorker()
-		worker.run(wp.WorkerQueue, wp.wg)
+		worker.run(wp.workerQueue, wp.wg)
 	}
 	// 循环获取可用的worker,往worker中写job
 	go func() {
 		for {
 			select {
 			case job, ok := <-wp.JobQueue:
-				worker := <-wp.WorkerQueue
-				worker.JobQueue <- job
+				worker := <-wp.workerQueue
+				worker.jobQueue <- job
 				if job == nil && !ok {
 					wp.stopSignal++
 					if wp.stopSignal == wp.workerlen {
@@ -111,14 +111,14 @@ func (wp *WorkerPool) Close() {
 		wp.stop <- struct{}{}
 		for i := 0; i < wp.workerlen; i++ {
 			select {
-			case worker := <-wp.WorkerQueue:
+			case worker := <-wp.workerQueue:
 				worker.close()
 			}
 		}
 		close(wp.JobQueue)
 	}
 	close(wp.stop)
-	close(wp.WorkerQueue)
+	close(wp.workerQueue)
 }
 
 //等待协程池工作完成
