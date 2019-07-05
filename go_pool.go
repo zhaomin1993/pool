@@ -21,15 +21,15 @@ type Job interface {
 }
 
 // --------------------------- Worker ---------------------
-type Worker struct {
+type worker struct {
 	JobQueue chan Job
 	stop     chan struct{}
 }
 
-func NewWorker() Worker {
-	return Worker{JobQueue: make(chan Job), stop: make(chan struct{})}
+func newWorker() worker {
+	return worker{JobQueue: make(chan Job), stop: make(chan struct{})}
 }
-func (w *Worker) Run(wq chan *Worker, wg *sync.WaitGroup) {
+func (w *worker) run(wq chan *worker, wg *sync.WaitGroup) {
 	wq <- w
 	wg.Add(1)
 	go func() {
@@ -53,7 +53,7 @@ func (w *Worker) Run(wq chan *Worker, wg *sync.WaitGroup) {
 	}()
 }
 
-func (w *Worker) Stop() {
+func (w *worker) close() {
 	w.stop <- struct{}{}
 	close(w.stop)
 	close(w.JobQueue)
@@ -66,7 +66,7 @@ type WorkerPool struct {
 	wg          *sync.WaitGroup
 	stop        chan struct{}
 	JobQueue    chan Job
-	WorkerQueue chan *Worker
+	WorkerQueue chan *worker
 }
 
 func NewWorkerPool(workerlen int) *WorkerPool {
@@ -76,14 +76,14 @@ func NewWorkerPool(workerlen int) *WorkerPool {
 		wg:          &sync.WaitGroup{},
 		stop:        make(chan struct{}),
 		JobQueue:    make(chan Job, workerlen),
-		WorkerQueue: make(chan *Worker, workerlen),
+		WorkerQueue: make(chan *worker, workerlen),
 	}
 }
 func (wp *WorkerPool) Run() {
 	//初始化worker
 	for i := 0; i < wp.workerlen; i++ {
-		worker := NewWorker()
-		worker.Run(wp.WorkerQueue, wp.wg)
+		worker := newWorker()
+		worker.run(wp.WorkerQueue, wp.wg)
 	}
 	// 循环获取可用的worker,往worker中写job
 	go func() {
@@ -106,13 +106,13 @@ func (wp *WorkerPool) Run() {
 }
 
 //关闭协程池，但需要一点时间,如果不是在wait()后调用,发送Job的协程需要recover()
-func (wp *WorkerPool) Stop() {
+func (wp *WorkerPool) Close() {
 	if wp.stopSignal == 0 {
 		wp.stop <- struct{}{}
 		for i := 0; i < wp.workerlen; i++ {
 			select {
 			case worker := <-wp.WorkerQueue:
-				worker.Stop()
+				worker.close()
 			}
 		}
 		close(wp.JobQueue)

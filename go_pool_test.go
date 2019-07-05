@@ -34,7 +34,7 @@ func TestWorkerPool_Run(t *testing.T) {
 			p.JobQueue <- sc
 		}
 		p.Wait()
-		p.Stop()
+		p.Close()
 		log.Println("stop over.....")
 		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
 	}()
