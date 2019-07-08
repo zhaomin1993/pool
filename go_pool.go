@@ -8,11 +8,12 @@ import (
 /*
 1、工人同一时间只能处理一个工作，每个工人处理工作与其他工人无关，所以单独开启协程
 2、工厂开工（WorkerPool.Run()）则工人加入工人队列开始工作（Worker.Run()）
-3、创建任务并循环加入WorkerPool.JobQueue（工厂工作队列，这里的工作列队没有缓冲），让工人队列（WorkerPool.WorkerQueue）中的工人（协程）处理
-4、从WorkerPool.JobQueue中接受任务，并以此分发给工人队列（WorkerPool.WorkerQueue）中的工人
+3、创建任务并循环加入WorkerPool.JobQueue（工厂工作队列），让工人队列（WorkerPool.WorkerQueue）中的工人（协程）处理
+4、从WorkerPool.JobQueue中接受任务，并以此分发给工人队列（WorkerPool.WorkerQueue）中的工人,工人工作完成后再返回队列
 5、工人接收到任务执行Do（）
-6、关闭协程池先停止工人从工作队列中拿取Job，再遍历协程池中的工人队列，让工人停止工作，由于stop是非缓存通道，所以stop（）需要花费一定时间
+6、关闭协程池先停止工人从工作队列中拿取Job，再遍历协程池中的工人队列，让工人停止工作，由于stop是非缓存通道，所以close（）需要花费一定时间
 7、关闭协程池的工作队列，然后工人根据拿到的Job是否为nil来判断所有任务是否已经完成，完成则退出
+8、wait()等待协程池完工，既关闭工作队列，让工人去判断是否还有工作，没有则下班
 */
 //核心思想：固定数量的goroutine for循环处理一同个channel中的数据
 // --------------------------- Job ---------------------
@@ -61,17 +62,17 @@ func (w *worker) close() {
 
 // --------------------------- WorkerPool ---------------------
 type WorkerPool struct {
-	workerlen   int
-	stopSignal  int
+	workerlen   uint16
+	stopSignal  uint16
 	wg          *sync.WaitGroup
 	stop        chan struct{}
 	JobQueue    chan Job
 	workerQueue chan *worker
 }
 
-func NewWorkerPool(workerlen uint8) *WorkerPool {
+func NewWorkerPool(workerlen uint16) *WorkerPool {
 	return &WorkerPool{
-		workerlen:   int(workerlen),
+		workerlen:   workerlen,
 		stopSignal:  0,
 		wg:          &sync.WaitGroup{},
 		stop:        make(chan struct{}),
@@ -81,7 +82,8 @@ func NewWorkerPool(workerlen uint8) *WorkerPool {
 }
 func (wp *WorkerPool) Run() {
 	//初始化worker
-	for i := 0; i < wp.workerlen; i++ {
+	workerlen := int(wp.workerlen)
+	for i := 0; i < workerlen; i++ {
 		worker := newWorker()
 		worker.run(wp.workerQueue, wp.wg)
 	}
@@ -109,7 +111,8 @@ func (wp *WorkerPool) Run() {
 func (wp *WorkerPool) Close() {
 	if wp.stopSignal == 0 {
 		wp.stop <- struct{}{}
-		for i := 0; i < wp.workerlen; i++ {
+		workerlen := int(wp.workerlen)
+		for i := 0; i < workerlen; i++ {
 			select {
 			case worker := <-wp.workerQueue:
 				worker.close()
