@@ -69,9 +69,9 @@ type WorkerPool struct {
 	workerQueue chan *worker
 }
 
-func NewWorkerPool(workerlen int) *WorkerPool {
+func NewWorkerPool(workerlen uint8) *WorkerPool {
 	return &WorkerPool{
-		workerlen:   workerlen,
+		workerlen:   int(workerlen),
 		stopSignal:  0,
 		wg:          &sync.WaitGroup{},
 		stop:        make(chan struct{}),
