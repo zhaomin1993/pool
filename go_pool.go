@@ -76,7 +76,7 @@ func NewWorkerPool(workerlen uint16) *WorkerPool {
 		stopSignal:  0,
 		wg:          &sync.WaitGroup{},
 		stop:        make(chan struct{}),
-		JobQueue:    make(chan Job, workerlen),
+		JobQueue:    make(chan Job),
 		workerQueue: make(chan *worker, workerlen),
 	}
 }
