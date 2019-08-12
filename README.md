@@ -1,0 +1,1 @@
+###### 核心思想：固定数量的goroutine for循环处理一同个channel中的数据
