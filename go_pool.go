@@ -70,6 +70,13 @@ type WorkerPool struct {
 	workerQueue chan *worker
 }
 
+//创建协程池并启动
+func NewWorkerPoolAndRun(workerlen uint16) *WorkerPool {
+	wp := NewWorkerPool(workerlen)
+	wp.Run()
+	return wp
+}
+
 //创建协程池
 func NewWorkerPool(workerlen uint16) *WorkerPool {
 	return &WorkerPool{

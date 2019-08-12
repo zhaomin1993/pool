@@ -20,8 +20,7 @@ func (s *Score) Do() {
 
 //go test -v -test.run TestWorkerPool_Run
 func TestWorkerPool_Run(t *testing.T) {
-	p := NewWorkerPool(1000)
-	p.Run()
+	p := NewWorkerPoolAndRun(1000)
 	datanum := 100 * 100 * 100
 	go func() {
 		defer func() {
