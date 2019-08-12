@@ -32,8 +32,7 @@ func TestWorkerPool_Run(t *testing.T) {
 			sc := &Score{Num: i}
 			p.Accept(sc)
 		}
-		p.Wait()
-		p.Close()
+		p.WaitAndClose()
 		log.Println("stop over.....")
 		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
 	}()

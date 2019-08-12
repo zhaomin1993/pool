@@ -122,6 +122,12 @@ func (wp *WorkerPool) Accept(job Job) {
 	wp.jobQueue <- job
 }
 
+//等待协程池完成工作后关闭
+func (wp *WorkerPool) WaitAndClose() {
+	wp.wait()
+	wp.Close()
+}
+
 //关闭协程池，但需要一点时间,如果不是在wait()后调用,发送Job的协程需要recover()
 func (wp *WorkerPool) Close() {
 	if wp.stopSignal == 0 {
@@ -140,7 +146,7 @@ func (wp *WorkerPool) Close() {
 }
 
 //等待协程池工作完成
-func (wp *WorkerPool) Wait() {
+func (wp *WorkerPool) wait() {
 	close(wp.jobQueue)
 	wp.wg.Wait()
 }
