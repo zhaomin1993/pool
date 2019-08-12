@@ -31,7 +31,7 @@ func TestWorkerPool_Run(t *testing.T) {
 		}()
 		for i := 1; i <= datanum; i++ {
 			sc := &Score{Num: i}
-			p.Send(sc)
+			p.Accept(sc)
 		}
 		p.Wait()
 		p.Close()

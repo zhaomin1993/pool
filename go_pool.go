@@ -70,6 +70,7 @@ type WorkerPool struct {
 	workerQueue chan *worker
 }
 
+//创建协程池
 func NewWorkerPool(workerlen uint16) *WorkerPool {
 	return &WorkerPool{
 		workerlen:   workerlen,
@@ -80,6 +81,8 @@ func NewWorkerPool(workerlen uint16) *WorkerPool {
 		workerQueue: make(chan *worker, workerlen),
 	}
 }
+
+//启动协程池
 func (wp *WorkerPool) Run() {
 	//初始化worker
 	workerlen := int(wp.workerlen)
@@ -107,7 +110,8 @@ func (wp *WorkerPool) Run() {
 	}()
 }
 
-func (wp *WorkerPool) Send(job Job) {
+//协程池接收任务
+func (wp *WorkerPool) Accept(job Job) {
 	wp.jobQueue <- job
 }
 
