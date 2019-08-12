@@ -66,7 +66,7 @@ type WorkerPool struct {
 	stopSignal  uint16
 	wg          *sync.WaitGroup
 	stop        chan struct{}
-	JobQueue    chan Job
+	jobQueue    chan Job
 	workerQueue chan *worker
 }
 
@@ -76,7 +76,7 @@ func NewWorkerPool(workerlen uint16) *WorkerPool {
 		stopSignal:  0,
 		wg:          &sync.WaitGroup{},
 		stop:        make(chan struct{}),
-		JobQueue:    make(chan Job),
+		jobQueue:    make(chan Job, 10),
 		workerQueue: make(chan *worker, workerlen),
 	}
 }
@@ -91,7 +91,7 @@ func (wp *WorkerPool) Run() {
 	go func() {
 		for {
 			select {
-			case job, ok := <-wp.JobQueue:
+			case job, ok := <-wp.jobQueue:
 				worker := <-wp.workerQueue
 				worker.jobQueue <- job
 				if job == nil && !ok {
@@ -107,6 +107,10 @@ func (wp *WorkerPool) Run() {
 	}()
 }
 
+func (wp *WorkerPool) Send(job Job) {
+	wp.jobQueue <- job
+}
+
 //关闭协程池，但需要一点时间,如果不是在wait()后调用,发送Job的协程需要recover()
 func (wp *WorkerPool) Close() {
 	if wp.stopSignal == 0 {
@@ -118,7 +122,7 @@ func (wp *WorkerPool) Close() {
 				worker.close()
 			}
 		}
-		close(wp.JobQueue)
+		close(wp.jobQueue)
 	}
 	close(wp.stop)
 	close(wp.workerQueue)
@@ -126,6 +130,6 @@ func (wp *WorkerPool) Close() {
 
 //等待协程池工作完成
 func (wp *WorkerPool) Wait() {
-	close(wp.JobQueue)
+	close(wp.jobQueue)
 	wp.wg.Wait()
 }
