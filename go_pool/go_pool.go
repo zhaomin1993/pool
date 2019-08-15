@@ -6,7 +6,7 @@ import (
 
 // --------------------------- Job ---------------------
 type Job interface {
-	Do() //不允许发生panic也不允许永远阻塞
+	Do() //不允许发生panic也不允许永远阻塞,代码要求高
 }
 
 // --------------------------- Worker ---------------------
@@ -34,7 +34,7 @@ func (w *worker) run(wq chan *worker, wg *sync.WaitGroup) {
 					close(w.jobQueue)
 					return
 				}
-			case <-w.stop: //由于select的伪随机性，stop不一定会执行，导致stop没有即时性
+			case <-w.stop:
 				return
 				//runtime.Goexit()
 			}
