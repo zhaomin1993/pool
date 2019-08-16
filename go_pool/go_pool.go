@@ -72,7 +72,7 @@ func NewWorkerPool(workerlen uint16) *WorkerPool {
 		stopSignal:  0,
 		wg:          &sync.WaitGroup{},
 		stop:        make(chan struct{}),
-		jobQueue:    make(chan Job, 10),
+		jobQueue:    make(chan Job),
 		workerQueue: make(chan *worker, workerlen),
 	}
 }
@@ -127,7 +127,14 @@ func (wp *WorkerPool) Close() {
 				worker.close()
 			}
 		}
-		close(wp.jobQueue)
+		select {
+		case _, ok := <-wp.jobQueue:
+			if ok {
+				close(wp.jobQueue)
+			}
+		default:
+			close(wp.jobQueue)
+		}
 	}
 	close(wp.stop)
 	close(wp.workerQueue)
