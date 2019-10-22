@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync/atomic"
 	"time"
 )
@@ -17,6 +18,7 @@ type Proxy struct {
 	Port   int
 	User   string
 	Pass   string
+	Proto  string
 }
 
 type ClientPool struct {
@@ -36,46 +38,32 @@ func NewClientPool(pxs []Proxy, isRedirect bool, timeout, threads uint) *ClientP
 		}
 	}
 	count := len(pxs)
-	var httpTransports = make([]http.RoundTripper, 0, length)
+	var httpTransports = make([]http.RoundTripper, 0, count)
 	if count == 0 {
-		count = length //默认client池长度为5
-		for i := 0; i < count; i++ {
-			var httpTransport = &http.Transport{
-				TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, //跳过HTTPS证书检查
-				MaxIdleConns:        100,                                   //MaxIdleConns限制了最大keep-alive的连接数，超出的连接会被关闭掉
-				MaxIdleConnsPerHost: 1000,                                  //最大空闲连接的主机数
-				IdleConnTimeout:     45 * time.Second,                      //空闲连接超时时间
-				Dial: (&net.Dialer{
-					Timeout:   10 * time.Second, //TCP连接建立超时时间
-					KeepAlive: 30 * time.Second,
-				}).Dial,
-				TLSHandshakeTimeout:   10 * time.Second, //TLS握手时间
-				ResponseHeaderTimeout: 10 * time.Second, //头部返回超时时间
-				// DisableCompression: true,
-			}
-			httpTransports = append(httpTransports, httpTransport)
+		var httpTransport = &http.Transport{
+			TLSClientConfig:     &tls.Config{InsecureSkipVerify: true}, //跳过HTTPS证书检查
+			MaxIdleConns:        100,                                   //MaxIdleConns限制了最大keep-alive的连接数，超出的连接会被关闭掉
+			MaxIdleConnsPerHost: 1000,                                  //最大空闲连接的主机数
+			IdleConnTimeout:     45 * time.Second,                      //空闲连接超时时间
+			Dial: (&net.Dialer{
+				Timeout:   10 * time.Second, //TCP连接建立超时时间
+				KeepAlive: 30 * time.Second,
+			}).Dial,
+			TLSHandshakeTimeout:   10 * time.Second, //TLS握手时间
+			ResponseHeaderTimeout: 10 * time.Second, //头部返回超时时间
+			// DisableCompression: true,
 		}
+		httpTransports = append(httpTransports, httpTransport)
 	} else {
-		if count < length {
-			times := length / count
-			if length%count > 0 {
-				times++
-			}
-			original_proxy := pxs
-			for i := 0; i < times; i++ {
-				pxs = append(pxs, original_proxy...)
-			}
-			count = len(pxs)
-		}
 		for i := range pxs {
 			var p func(*http.Request) (*url.URL, error)
 			var d = (&net.Dialer{
 				Timeout:   10 * time.Second, //TCP连接建立超时时间
 				KeepAlive: 30 * time.Second,
 			}).Dial
-			if pxs[i].User == "" {
+			if strings.ToLower(pxs[i].Proto) == "http" || strings.ToLower(pxs[i].Proto) == "https" {
 				p = func(_ *http.Request) (*url.URL, error) {
-					return url.Parse(fmt.Sprintf("http://%s:%d", pxs[i].Server, pxs[i].Port))
+					return url.Parse(fmt.Sprintf("%s://%s:%d", pxs[i].Proto, pxs[i].Server, pxs[i].Port))
 				}
 			} else {
 				var auth proxy.Auth
@@ -104,6 +92,7 @@ func NewClientPool(pxs []Proxy, isRedirect bool, timeout, threads uint) *ClientP
 			httpTransports = append(httpTransports, httpTransport)
 		}
 	}
+	count = len(httpTransports)
 
 	var redirectPolicyFunc func(req *http.Request, via []*http.Request) error
 	if isRedirect {
@@ -115,13 +104,14 @@ func NewClientPool(pxs []Proxy, isRedirect bool, timeout, threads uint) *ClientP
 	}
 
 	pool := &ClientPool{
-		count:      uint64(count),
-		oneclients: make([]*http.Client, count),
+		count:      uint64(length),
+		oneclients: make([]*http.Client, length),
 	}
-	for i := 0; i < count; i++ {
+	for i := 0; i < length; i++ {
+		index := i % count
 		oneclient := &http.Client{
 			CheckRedirect: redirectPolicyFunc,
-			Transport:     httpTransports[i],
+			Transport:     httpTransports[index],
 			//设置请求绝对超时时间
 			Timeout: time.Duration(timeout) * time.Second,
 		}
