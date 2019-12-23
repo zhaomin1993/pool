@@ -6,7 +6,7 @@ import (
 
 // --------------------------- Job ---------------------
 type Job interface {
-	Do() //不允许发生panic也不允许永远阻塞,代码要求高
+	Do() //不允许永远阻塞,代码要求高
 }
 
 // --------------------------- Worker ---------------------
@@ -15,12 +15,18 @@ type worker struct {
 	stop     chan struct{}
 }
 
-func newWorker() worker {
-	return worker{jobQueue: make(chan Job), stop: make(chan struct{})}
+func newWorker() *worker {
+	return &worker{jobQueue: make(chan Job), stop: make(chan struct{})}
 }
 func (w *worker) run(wq chan *worker) {
 	wq <- w
 	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				worker := newWorker()
+				worker.run(wq)
+			}
+		}()
 		for {
 			select {
 			case job := <-w.jobQueue:
