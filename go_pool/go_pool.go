@@ -18,25 +18,16 @@ type worker struct {
 func newWorker() worker {
 	return worker{jobQueue: make(chan Job), stop: make(chan struct{})}
 }
-func (w *worker) run(wq chan *worker, wg *sync.WaitGroup) {
+func (w *worker) run(wq chan *worker) {
 	wq <- w
-	wg.Add(1)
 	go func() {
 		for {
 			select {
 			case job := <-w.jobQueue:
-				if job != nil {
-					job.Do()
-					wq <- w
-				} else {
-					wg.Done()
-					close(w.stop)
-					close(w.jobQueue)
-					return
-				}
+				job.Do()
+				wq <- w
 			case <-w.stop:
 				return
-				//runtime.Goexit()
 			}
 		}
 	}()
@@ -50,53 +41,54 @@ func (w *worker) close() {
 
 // --------------------------- WorkerPool ---------------------
 type WorkerPool struct {
-	workerlen   uint16
-	stopSignal  uint16
-	wg          *sync.WaitGroup
+	maxWoker    uint16
+	workerNum   uint16
+	mux         *sync.RWMutex
 	stop        chan struct{}
 	jobQueue    chan Job
 	workerQueue chan *worker
 }
 
 //创建协程池并启动
-func NewWorkerPoolAndRun(workerlen uint16) *WorkerPool {
-	wp := NewWorkerPool(workerlen)
+func NewWorkerPoolAndRun(workerNum, maxWoker uint16) *WorkerPool {
+	wp := NewWorkerPool(workerNum, maxWoker)
 	wp.Run()
 	return wp
 }
 
 //创建协程池
-func NewWorkerPool(workerlen uint16) *WorkerPool {
+func NewWorkerPool(workerNum, maxWoker uint16) *WorkerPool {
+	if workerNum > maxWoker {
+		workerNum = maxWoker
+	}
 	return &WorkerPool{
-		workerlen:   workerlen,
-		stopSignal:  0,
-		wg:          &sync.WaitGroup{},
+		maxWoker:    maxWoker,
+		workerNum:   workerNum,
+		mux:         &sync.RWMutex{},
 		stop:        make(chan struct{}),
 		jobQueue:    make(chan Job),
-		workerQueue: make(chan *worker, workerlen),
+		workerQueue: make(chan *worker, maxWoker),
 	}
 }
 
 //启动协程池
 func (wp *WorkerPool) Run() {
 	//初始化worker
-	workerlen := int(wp.workerlen)
+	wp.mux.RLock()
+	workerlen := int(wp.workerNum)
 	for i := 0; i < workerlen; i++ {
 		worker := newWorker()
-		worker.run(wp.workerQueue, wp.wg)
+		worker.run(wp.workerQueue)
 	}
+	wp.mux.RUnlock()
 	// 循环获取可用的worker,往worker中写job
 	go func() {
 		for {
 			select {
-			case job, ok := <-wp.jobQueue:
+			case job, _ := <-wp.jobQueue:
 				worker := <-wp.workerQueue
-				worker.jobQueue <- job
-				if job == nil && !ok {
-					wp.stopSignal++
-					if wp.stopSignal == wp.workerlen {
-						return
-					}
+				if job != nil {
+					worker.jobQueue <- job
 				}
 			case <-wp.stop:
 				return
@@ -110,38 +102,43 @@ func (wp *WorkerPool) Accept(job Job) {
 	wp.jobQueue <- job
 }
 
+//调整协程数
+func (wp *WorkerPool) AdjustSize(workNum uint16) {
+	if workNum > wp.maxWoker {
+		workNum = wp.maxWoker
+	}
+	wp.mux.Lock()
+	oldNum := wp.workerNum
+	wp.workerNum = workNum
+	if workNum > oldNum {
+		for i := oldNum; i < workNum; i++ {
+			worker := newWorker()
+			worker.run(wp.workerQueue)
+		}
+	} else if workNum < oldNum {
+		for i := workNum; i < oldNum; i++ {
+			worker := <-wp.workerQueue
+			worker.close()
+		}
+	}
+	wp.mux.Unlock()
+}
+
 //等待协程池完成工作后关闭
 func (wp *WorkerPool) WaitAndClose() {
-	wp.wait()
+	wp.AdjustSize(0)
 	wp.Close()
 }
 
-//关闭协程池，但需要一点时间,如果不是在wait()后调用,发送Job的协程需要recover()
+//关闭协程池，但需要一点时间,如果是直接调用,发送Job的协程需要recover()
 func (wp *WorkerPool) Close() {
-	if wp.stopSignal == 0 {
-		wp.stop <- struct{}{}
-		workerlen := int(wp.workerlen)
-		for i := 0; i < workerlen; i++ {
-			select {
-			case worker := <-wp.workerQueue:
-				worker.close()
-			}
-		}
-		select {
-		case _, ok := <-wp.jobQueue:
-			if ok {
-				close(wp.jobQueue)
-			}
-		default:
-			close(wp.jobQueue)
+	wp.stop <- struct{}{}
+	close(wp.stop)
+	if wp.workerNum != 0 {
+		for worker := range wp.workerQueue {
+			worker.close()
 		}
 	}
-	close(wp.stop)
 	close(wp.workerQueue)
-}
-
-//等待协程池工作完成
-func (wp *WorkerPool) wait() {
 	close(wp.jobQueue)
-	wp.wg.Wait()
 }
