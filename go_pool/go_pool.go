@@ -26,6 +26,8 @@ func (w *worker) run(wq chan *worker, onPanic func(msg interface{})) {
 				if onPanic != nil {
 					onPanic(r)
 				}
+				close(w.stop)
+				close(w.jobQueue)
 				worker := newWorker()
 				worker.run(wq, onPanic)
 				wq <- worker
