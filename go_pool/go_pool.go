@@ -1,6 +1,7 @@
 package go_pool
 
 import (
+	"errors"
 	"sync"
 )
 
@@ -18,13 +19,16 @@ type worker struct {
 func newWorker() *worker {
 	return &worker{jobQueue: make(chan Job), stop: make(chan struct{})}
 }
-func (w *worker) run(wq chan *worker) {
-	wq <- w
+func (w *worker) run(wq chan *worker, onPanic func(msg interface{})) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
+				if onPanic != nil {
+					onPanic(r)
+				}
 				worker := newWorker()
-				worker.run(wq)
+				worker.run(wq, onPanic)
+				wq <- worker
 			}
 		}()
 		for {
@@ -47,82 +51,84 @@ func (w *worker) close() {
 
 // --------------------------- WorkerPool ---------------------
 type WorkerPool struct {
-	maxWoker    uint16
+	maxNum      uint16
+	aliveNum    uint16
 	workerNum   uint16
-	mux         *sync.RWMutex
-	stop        chan struct{}
-	jobQueue    chan Job
+	mux         sync.RWMutex
+	closeOnce   sync.Once
 	workerQueue chan *worker
-}
-
-//创建协程池并启动
-func NewWorkerPoolAndRun(workerNum, maxWoker uint16) *WorkerPool {
-	wp := NewWorkerPool(workerNum, maxWoker)
-	wp.Run()
-	return wp
+	onPanic     func(msg interface{})
 }
 
 //创建协程池
-func NewWorkerPool(workerNum, maxWoker uint16) *WorkerPool {
-	if workerNum > maxWoker {
-		workerNum = maxWoker
+func NewWorkerPool(workerNum, maxNum uint16) *WorkerPool {
+	if workerNum > maxNum {
+		workerNum = maxNum
 	}
 	return &WorkerPool{
-		maxWoker:    maxWoker,
+		maxNum:      maxNum,
 		workerNum:   workerNum,
-		mux:         &sync.RWMutex{},
-		stop:        make(chan struct{}),
-		jobQueue:    make(chan Job),
-		workerQueue: make(chan *worker, maxWoker),
+		mux:         sync.RWMutex{},
+		closeOnce:   sync.Once{},
+		workerQueue: make(chan *worker, maxNum),
 	}
 }
 
-//启动协程池
-func (wp *WorkerPool) Run() {
-	//初始化worker
-	wp.mux.RLock()
-	workerlen := int(wp.workerNum)
-	for i := 0; i < workerlen; i++ {
-		worker := newWorker()
-		worker.run(wp.workerQueue)
-	}
-	wp.mux.RUnlock()
-	// 循环获取可用的worker,往worker中写job
-	go func() {
-		for {
-			select {
-			case job, _ := <-wp.jobQueue:
-				worker := <-wp.workerQueue
-				if job != nil {
-					worker.jobQueue <- job
-				}
-			case <-wp.stop:
-				return
-			}
-		}
-	}()
+func (wp *WorkerPool) OnPanic(onPanic func(msg interface{})) {
+	wp.onPanic = onPanic
 }
 
 //协程池接收任务
-func (wp *WorkerPool) Accept(job Job) {
-	wp.jobQueue <- job
+func (wp *WorkerPool) Accept(job Job) (err error) {
+	if job != nil {
+		select {
+		case worker := <-wp.workerQueue:
+			if worker != nil {
+				worker.jobQueue <- job
+			} else {
+				err = errors.New("has no worker")
+			}
+		default:
+			var worker *worker
+			wp.mux.Lock()
+			if wp.aliveNum < wp.workerNum {
+				wp.aliveNum++
+				wp.mux.Unlock()
+				worker = newWorker()
+				worker.run(wp.workerQueue, wp.onPanic)
+			} else {
+				wp.mux.Unlock()
+				worker = <-wp.workerQueue
+			}
+			if worker != nil {
+				worker.jobQueue <- job
+			} else {
+				err = errors.New("has no worker")
+			}
+		}
+	} else {
+		err = errors.New("job can not be nil")
+	}
+	return
+}
+
+//获取协程数
+func (wp *WorkerPool) Cap() uint16 {
+	wp.mux.RLock()
+	defer wp.mux.RUnlock()
+	return wp.aliveNum
 }
 
 //调整协程数
 func (wp *WorkerPool) AdjustSize(workNum uint16) {
-	if workNum > wp.maxWoker {
-		workNum = wp.maxWoker
+	if workNum > wp.maxNum {
+		workNum = wp.maxNum
 	}
 	wp.mux.Lock()
-	oldNum := wp.workerNum
 	wp.workerNum = workNum
-	if workNum > oldNum {
-		for i := oldNum; i < workNum; i++ {
-			worker := newWorker()
-			worker.run(wp.workerQueue)
-		}
-	} else if workNum < oldNum {
-		for i := workNum; i < oldNum; i++ {
+	if workNum < wp.aliveNum {
+		for workNum < wp.aliveNum {
+			wp.aliveNum--
 			worker := <-wp.workerQueue
 			worker.close()
 		}
@@ -130,21 +136,10 @@ func (wp *WorkerPool) AdjustSize(workNum uint16) {
 	wp.mux.Unlock()
 }
 
-//等待协程池完成工作后关闭
-func (wp *WorkerPool) WaitAndClose() {
-	wp.AdjustSize(0)
-	wp.Close()
-}
-
-//关闭协程池，但需要一点时间,如果是直接调用,发送Job的协程需要recover()
+//关闭协程池
 func (wp *WorkerPool) Close() {
-	wp.stop <- struct{}{}
-	close(wp.stop)
-	if wp.workerNum != 0 {
-		for worker := range wp.workerQueue {
-			worker.close()
-		}
-	}
-	close(wp.workerQueue)
-	close(wp.jobQueue)
+	wp.closeOnce.Do(func() {
+		wp.AdjustSize(0)
+		close(wp.workerQueue)
+	})
 }
