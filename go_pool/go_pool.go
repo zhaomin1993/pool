@@ -52,7 +52,7 @@ func (w *worker) close() {
 }
 
 // --------------------------- WorkerPool ---------------------
-type WorkerPool struct {
+type workerPool struct {
 	maxNum      uint16
 	aliveNum    uint16
 	workerNum   uint16
@@ -63,11 +63,11 @@ type WorkerPool struct {
 }
 
 //创建协程池
-func NewWorkerPool(workerNum, maxNum uint16) *WorkerPool {
+func NewWorkerPool(workerNum, maxNum uint16) *workerPool {
 	if workerNum > maxNum {
 		workerNum = maxNum
 	}
-	return &WorkerPool{
+	return &workerPool{
 		maxNum:      maxNum,
 		workerNum:   workerNum,
 		mux:         sync.RWMutex{},
@@ -76,12 +76,12 @@ func NewWorkerPool(workerNum, maxNum uint16) *WorkerPool {
 	}
 }
 
-func (wp *WorkerPool) OnPanic(onPanic func(msg interface{})) {
+func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 	wp.onPanic = onPanic
 }
 
 //协程池接收任务
-func (wp *WorkerPool) Accept(job Job) (err error) {
+func (wp *workerPool) Accept(job Job) (err error) {
 	if job != nil {
 		select {
 		case worker := <-wp.workerQueue:
@@ -115,14 +115,14 @@ func (wp *WorkerPool) Accept(job Job) (err error) {
 }
 
 //获取协程数
-func (wp *WorkerPool) Cap() uint16 {
+func (wp *workerPool) Cap() uint16 {
 	wp.mux.RLock()
 	defer wp.mux.RUnlock()
 	return wp.aliveNum
 }
 
 //调整协程数
-func (wp *WorkerPool) AdjustSize(workNum uint16) {
+func (wp *workerPool) AdjustSize(workNum uint16) {
 	if workNum > wp.maxNum {
 		workNum = wp.maxNum
 	}
@@ -139,7 +139,7 @@ func (wp *WorkerPool) AdjustSize(workNum uint16) {
 }
 
 //关闭协程池
-func (wp *WorkerPool) Close() {
+func (wp *workerPool) Close() {
 	wp.closeOnce.Do(func() {
 		wp.AdjustSize(0)
 		close(wp.workerQueue)
