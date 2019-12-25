@@ -107,11 +107,6 @@ func (wp *workerPool) Accept(job job) (err error) {
 				wp.mux.Unlock()
 				err = errors.New("worker pool has been closed")
 				return
-			} else if wp.aliveNum < wp.workerNum {
-				wp.aliveNum++
-				wp.mux.Unlock()
-				worker = newWorker()
-				worker.run(wp.workerQueue, wp.onPanic)
 			} else if wp.workerNum == 0 {
 				wp.mux.Unlock()
 				wp.AdjustSize(wp.recordNum)
@@ -120,7 +115,13 @@ func (wp *workerPool) Accept(job job) (err error) {
 			} else if wp.aliveNum == wp.workerNum {
 				wp.mux.Unlock()
 				worker = <-wp.workerQueue
+			} else if wp.aliveNum < wp.workerNum {
+				wp.aliveNum++
+				wp.mux.Unlock()
+				worker = newWorker()
+				worker.run(wp.workerQueue, wp.onPanic)
 			} else {
+				wp.mux.Unlock()
 				panic("worker number less than alive number")
 			}
 			if worker != nil {

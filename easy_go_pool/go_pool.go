@@ -53,6 +53,7 @@ func (w *worker) close() {
 
 // --------------------------- WorkerPool ---------------------
 type workerPool struct {
+	closed      bool
 	maxNum      uint16
 	aliveNum    uint16
 	workerNum   uint16
@@ -88,24 +89,35 @@ func (wp *workerPool) Accept(job job) (err error) {
 			if worker != nil {
 				worker.jobQueue <- job
 			} else {
-				err = errors.New("has no worker")
+				err = errors.New("worker pool has been closed")
 			}
 		default:
 			var worker *worker
 			wp.mux.Lock()
-			if wp.aliveNum < wp.workerNum {
+			if wp.closed {
+				wp.mux.Unlock()
+				err = errors.New("worker pool has been closed")
+				return
+			} else if wp.workerNum == 0 {
+				wp.mux.Unlock()
+				err = errors.New("has no worker")
+				return
+			} else if wp.aliveNum == wp.workerNum {
+				wp.mux.Unlock()
+				worker = <-wp.workerQueue
+			} else if wp.aliveNum < wp.workerNum {
 				wp.aliveNum++
 				wp.mux.Unlock()
 				worker = newWorker()
 				worker.run(wp.workerQueue, wp.onPanic)
 			} else {
 				wp.mux.Unlock()
-				worker = <-wp.workerQueue
+				panic("worker number less than alive number")
 			}
 			if worker != nil {
 				worker.jobQueue <- job
 			} else {
-				err = errors.New("has no worker")
+				err = errors.New("worker pool has been closed")
 			}
 		}
 	} else {
@@ -141,7 +153,18 @@ func (wp *workerPool) AdjustSize(workNum uint16) {
 //关闭协程池
 func (wp *workerPool) Close() {
 	wp.closeOnce.Do(func() {
-		wp.AdjustSize(0)
+		wp.mux.Lock()
+		wp.closed = true
+		wp.workerNum = 0
+		if 0 < wp.aliveNum {
+			for 0 < wp.aliveNum {
+				wp.aliveNum--
+				worker := <-wp.workerQueue
+				worker.close()
+			}
+		}
+		close(wp.workerQueue)
+		wp.mux.Unlock()
 		close(wp.workerQueue)
 	})
 }
