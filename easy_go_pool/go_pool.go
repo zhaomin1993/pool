@@ -165,6 +165,5 @@ func (wp *workerPool) Close() {
 		}
 		close(wp.workerQueue)
 		wp.mux.Unlock()
-		close(wp.workerQueue)
 	})
 }
