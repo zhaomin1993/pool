@@ -28,11 +28,8 @@ func (w *worker) run(wq chan *worker, onPanic func(msg interface{})) {
 				if onPanic != nil {
 					onPanic(r)
 				}
-				close(w.stop)
-				close(w.jobQueue)
-				worker := newWorker()
-				worker.run(wq, onPanic)
-				wq <- worker
+				w.run(wq, onPanic)
+				wq <- w
 			}
 		}()
 		for {
@@ -109,12 +106,19 @@ func (wp *workerPool) Accept(job job) (err error) {
 				return
 			} else if wp.workerNum == 0 {
 				wp.mux.Unlock()
-				wp.AdjustSize(wp.recordNum)
+				wp.AdjustSize(2)
 				err = wp.Accept(job)
 				return
 			} else if wp.aliveNum == wp.workerNum {
-				wp.mux.Unlock()
-				worker = <-wp.workerQueue
+				if wp.workerNum < wp.maxNum {
+					wp.mux.Unlock()
+					wp.AdjustSize(2 * wp.workerNum)
+					err = wp.Accept(job)
+					return
+				} else {
+					wp.mux.Unlock()
+					worker = <-wp.workerQueue
+				}
 			} else if wp.aliveNum < wp.workerNum {
 				wp.aliveNum++
 				wp.mux.Unlock()
