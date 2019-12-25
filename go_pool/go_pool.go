@@ -8,18 +8,18 @@ import (
 )
 
 // --------------------------- Job ---------------------
-type Job interface {
+type job interface {
 	Do() //不允许永远阻塞,代码要求高
 }
 
 // --------------------------- Worker ---------------------
 type worker struct {
-	jobQueue chan Job
+	jobQueue chan job
 	stop     chan struct{}
 }
 
 func newWorker() *worker {
-	return &worker{jobQueue: make(chan Job), stop: make(chan struct{})}
+	return &worker{jobQueue: make(chan job), stop: make(chan struct{})}
 }
 func (w *worker) run(wq chan *worker, onPanic func(msg interface{})) {
 	go func() {
@@ -91,7 +91,7 @@ func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 }
 
 //协程池接收任务
-func (wp *workerPool) Accept(job Job) (err error) {
+func (wp *workerPool) Accept(job job) (err error) {
 	if job != nil {
 		select {
 		case worker := <-wp.workerQueue:
