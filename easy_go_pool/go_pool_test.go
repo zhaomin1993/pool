@@ -50,39 +50,9 @@ func TestWorkerPool_Run(t *testing.T) {
 			p.AdjustSize(uint16(randNum))
 		}
 		log.Println("start wait.....")
-		//p.Close()
-		p.AutoCutCap(time.Second * time.Duration(5))
+		p.Close()
 		log.Println("stop over.....")
 		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
-	}()
-	go func() {
-		time.Sleep(time.Second * 62)
-		log.Println("start again.....------------------------------")
-		for i := 1; i <= datanum; i++ {
-			sc := &Score{Num: i}
-			if err := p.Accept(sc); err != nil {
-				fmt.Println("err:\t", err)
-				break
-			}
-			if i%10000 == 0 {
-				log.Println("send num:", i)
-			}
-			randNum := rand.Intn(10) + 1000
-			p.AdjustSize(uint16(randNum))
-		}
-		p.Close()
-		for i := 1; i <= datanum; i++ {
-			sc := &Score{Num: i}
-			if err := p.Accept(sc); err != nil {
-				fmt.Println("err:\t", err)
-				break
-			}
-			if i%10000 == 0 {
-				log.Println("send num:", i)
-			}
-			randNum := rand.Intn(10) + 1000
-			p.AdjustSize(uint16(randNum))
-		}
 	}()
 	for {
 		time.Sleep(1 * time.Second)

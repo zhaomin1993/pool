@@ -2,9 +2,7 @@ package go_pool
 
 import (
 	"errors"
-	"fmt"
 	"sync"
-	"time"
 )
 
 // --------------------------- Job ---------------------
@@ -55,18 +53,13 @@ func (w *worker) close() {
 
 // --------------------------- WorkerPool ---------------------
 type workerPool struct {
-	closed         bool
-	openAutoCutCap bool
-	maxNum         uint16
-	aliveNum       uint16
-	workerNum      uint16
-	recordNum      uint16
-	mux            sync.RWMutex
-	closeOnce      sync.Once
-	autoOnce       sync.Once
-	workerQueue    chan *worker
-	onPanic        func(msg interface{})
-	stopAuto       chan struct{}
+	maxNum      uint16
+	aliveNum    uint16
+	workerNum   uint16
+	mux         sync.RWMutex
+	closeOnce   sync.Once
+	workerQueue chan *worker
+	onPanic     func(msg interface{})
 }
 
 //创建协程池
@@ -77,12 +70,9 @@ func NewWorkerPool(workerNum, maxNum uint16) *workerPool {
 	return &workerPool{
 		maxNum:      maxNum,
 		workerNum:   workerNum,
-		recordNum:   workerNum,
 		mux:         sync.RWMutex{},
 		closeOnce:   sync.Once{},
-		autoOnce:    sync.Once{},
 		workerQueue: make(chan *worker, maxNum),
-		//stopAuto:    make(chan struct{}),
 	}
 }
 
@@ -98,35 +88,24 @@ func (wp *workerPool) Accept(job Job) (err error) {
 			if worker != nil {
 				worker.jobQueue <- job
 			} else {
-				err = errors.New("worker pool has been closed")
+				err = errors.New("has no worker")
 			}
 		default:
 			var worker *worker
 			wp.mux.Lock()
-			if wp.closed {
-				wp.mux.Unlock()
-				err = errors.New("worker pool has been closed")
-				return
-			} else if wp.aliveNum < wp.workerNum {
+			if wp.aliveNum < wp.workerNum {
 				wp.aliveNum++
 				wp.mux.Unlock()
 				worker = newWorker()
 				worker.run(wp.workerQueue, wp.onPanic)
-			} else if wp.workerNum == 0 {
-				wp.mux.Unlock()
-				wp.AdjustSize(wp.recordNum)
-				err = wp.Accept(job)
-				return
-			} else if wp.aliveNum == wp.workerNum {
+			} else {
 				wp.mux.Unlock()
 				worker = <-wp.workerQueue
-			} else {
-				panic("worker number less than alive number")
 			}
 			if worker != nil {
 				worker.jobQueue <- job
 			} else {
-				err = errors.New("worker pool has been closed")
+				err = errors.New("has no worker")
 			}
 		}
 	} else {
@@ -162,51 +141,7 @@ func (wp *workerPool) AdjustSize(workNum uint16) {
 //关闭协程池
 func (wp *workerPool) Close() {
 	wp.closeOnce.Do(func() {
-		wp.mux.Lock()
-		wp.closed = true
-		if wp.openAutoCutCap {
-			wp.stopAuto <- struct{}{}
-			close(wp.stopAuto)
-		}
-		wp.workerNum = 0
-		if 0 < wp.aliveNum {
-			for 0 < wp.aliveNum {
-				wp.aliveNum--
-				worker := <-wp.workerQueue
-				worker.close()
-			}
-		}
+		wp.AdjustSize(0)
 		close(wp.workerQueue)
-		wp.mux.Unlock()
-	})
-}
-
-//自动缩容
-func (wp *workerPool) AutoCutCap(interval time.Duration) {
-	wp.autoOnce.Do(func() {
-		wp.mux.Lock()
-		wp.openAutoCutCap = true
-		wp.stopAuto = make(chan struct{})
-		wp.mux.Unlock()
-		go func() {
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-ticker.C:
-					length := len(wp.workerQueue)
-					wp.mux.RLock()
-					fmt.Println(length, "\t", wp.aliveNum)
-					if wp.aliveNum == uint16(length) && length != 0 {
-						wp.mux.RUnlock()
-						wp.AdjustSize(uint16(length / 2))
-					} else {
-						wp.mux.RUnlock()
-					}
-				case <-wp.stopAuto:
-					return
-				}
-			}
-		}()
 	})
 }
