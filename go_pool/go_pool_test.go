@@ -26,7 +26,7 @@ func (s *Score) Do() {
 //go test -v -test.run TestWorkerPool_Run
 func TestWorkerPool_Run(t *testing.T) {
 	log.Println("runtime.NumGoroutine() :", runtime.NumGoroutine())
-	p := NewWorkerPool(1000, 1100)
+	p := NewWorkerPool(1000, 1100, time.Second*5)
 	p.OnPanic(func(msg interface{}) {
 		//log.Println("error:", msg)
 	})
@@ -51,7 +51,6 @@ func TestWorkerPool_Run(t *testing.T) {
 		}
 		log.Println("start wait.....")
 		//p.Close()
-		p.AutoCutCap(time.Second * time.Duration(5))
 		log.Println("stop over.....")
 		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
 	}()
@@ -93,7 +92,7 @@ func TestWorkerPool_Run(t *testing.T) {
 //go test -v -test.run TestWorkerPool_Close
 func TestWorkerPool_Close(t *testing.T) {
 	log.Println("runtime.NumGoroutine() :", runtime.NumGoroutine())
-	p := NewWorkerPool(1000, 1100)
+	p := NewWorkerPool(1000, 1100, time.Second)
 	p.OnPanic(func(msg interface{}) {
 		//log.Println("error:", msg)
 	})
@@ -106,13 +105,12 @@ func TestWorkerPool_Close(t *testing.T) {
 		}()
 		for i := 1; i <= datanum; i++ {
 			sc := &Score{Num: i}
+			//log.Println("send num:-----", i)
 			if err := p.Accept(sc); err != nil {
 				fmt.Println("err:\t", err)
 				break
 			}
-			if i%10000 == 0 {
-				log.Println("send num:", i)
-			}
+			//log.Println("send num over:-----", i)
 			randNum := rand.Intn(10) + 1000
 			p.AdjustSize(uint16(randNum))
 		}
@@ -122,8 +120,12 @@ func TestWorkerPool_Close(t *testing.T) {
 		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
 	}()
 	go func() {
-		time.Sleep(time.Second * 3)
+		rand.Seed(time.Now().Unix())
+		randNum := rand.Intn(3) + 1
+		time.Sleep(time.Second * time.Duration(randNum))
+		//log.Println("after sleep.....")
 		p.Close()
+		//log.Println("close over.....")
 	}()
 	for {
 		time.Sleep(1 * time.Second)
