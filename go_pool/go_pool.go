@@ -150,11 +150,10 @@ func (wp *workerPool) Cap() uint16 {
 
 //调整协程池大小
 func (wp *workerPool) AdjustSize(workSize uint16) {
-	//因为maxSize不可变
+	wp.mux.Lock()
 	if workSize > wp.maxSize {
 		workSize = wp.maxSize
 	}
-	wp.mux.Lock()
 	if wp.workerNum > workSize {
 		wp.workerNum = workSize
 	}

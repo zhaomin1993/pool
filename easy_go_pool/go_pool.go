@@ -126,23 +126,22 @@ func (wp *workerPool) Accept(job job) (err error) {
 //获取协程数
 func (wp *workerPool) Cap() uint16 {
 	wp.mux.RLock()
-	defer wp.mux.RUnlock()
-	return wp.aliveNum
+	num := wp.aliveNum
+	wp.mux.RUnlock()
+	return num
 }
 
 //调整协程数
 func (wp *workerPool) AdjustSize(workNum uint16) {
+	wp.mux.Lock()
 	if workNum > wp.maxNum {
 		workNum = wp.maxNum
 	}
-	wp.mux.Lock()
 	wp.workerNum = workNum
-	if workNum < wp.aliveNum {
-		for workNum < wp.aliveNum {
-			wp.aliveNum--
-			worker := <-wp.workerQueue
-			worker.close()
-		}
+	for workNum < wp.aliveNum {
+		wp.aliveNum--
+		worker := <-wp.workerQueue
+		worker.close()
 	}
 	wp.mux.Unlock()
 }
@@ -153,12 +152,11 @@ func (wp *workerPool) Close() {
 		wp.mux.Lock()
 		wp.closed = true
 		wp.workerNum = 0
-		if 0 < wp.aliveNum {
-			for 0 < wp.aliveNum {
-				wp.aliveNum--
-				worker := <-wp.workerQueue
-				worker.close()
-			}
+		wp.maxNum = 0
+		for 0 < wp.aliveNum {
+			wp.aliveNum--
+			worker := <-wp.workerQueue
+			worker.close()
 		}
 		close(wp.workerQueue)
 		wp.mux.Unlock()
