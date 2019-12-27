@@ -46,6 +46,10 @@ func (w *worker) run(wq chan *worker, onPanic func(msg interface{})) {
 	}()
 }
 
+func (w *worker) exit() {
+	w.stop <- struct{}{}
+}
+
 //回收工人
 func (w *worker) close() {
 	w.stop <- struct{}{}
@@ -166,7 +170,7 @@ func (wp *workerPool) AdjustSize(workSize uint16) {
 	for workSize < wp.aliveNum {
 		wp.aliveNum--
 		worker := <-wp.workerQueue
-		worker.close()
+		worker.exit()
 		wp.workers.Put(worker)
 	}
 	wp.mux.Unlock()
@@ -182,7 +186,7 @@ func (wp *workerPool) adjustNum(workNum uint16) {
 	for workNum < wp.aliveNum {
 		wp.aliveNum--
 		worker := <-wp.workerQueue
-		worker.close()
+		worker.exit()
 		wp.workers.Put(worker)
 	}
 	wp.mux.Unlock()
