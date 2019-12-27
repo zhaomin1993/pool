@@ -60,12 +60,12 @@ type workerPool struct {
 	aliveNum    uint16
 	workerNum   uint16
 	workerSize  uint16
+	workers     sync.Pool
 	mux         sync.RWMutex
 	closeOnce   sync.Once
 	workerQueue chan *worker
 	stopAuto    chan struct{}
 	onPanic     func(msg interface{})
-	workers     sync.Pool
 }
 
 //创建协程池
