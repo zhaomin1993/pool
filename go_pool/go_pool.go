@@ -167,6 +167,7 @@ func (wp *workerPool) AdjustSize(workSize uint16) {
 		wp.aliveNum--
 		worker := <-wp.workerQueue
 		worker.close()
+		wp.workers.Put(worker)
 	}
 	wp.mux.Unlock()
 }
@@ -182,6 +183,7 @@ func (wp *workerPool) adjustNum(workNum uint16) {
 		wp.aliveNum--
 		worker := <-wp.workerQueue
 		worker.close()
+		wp.workers.Put(worker)
 	}
 	wp.mux.Unlock()
 }
