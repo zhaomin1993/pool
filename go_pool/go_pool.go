@@ -65,6 +65,7 @@ type workerPool struct {
 	workerQueue chan *worker
 	stopAuto    chan struct{}
 	onPanic     func(msg interface{})
+	workers     sync.Pool
 }
 
 //创建协程池
@@ -77,6 +78,10 @@ func NewWorkerPool(workerNum, maxSize uint16, interval time.Duration) *workerPoo
 		closeOnce:   sync.Once{},
 		workerQueue: make(chan *worker, maxSize),
 		stopAuto:    make(chan struct{}),
+		workers:     sync.Pool{},
+	}
+	wp.workers.New = func() interface{} {
+		return newWorker()
 	}
 	wp.autoCutCap(interval)
 	return wp
@@ -126,7 +131,7 @@ func (wp *workerPool) Accept(job job) (err error) {
 			case wp.aliveNum < wp.workerNum:
 				wp.aliveNum++
 				wp.mux.Unlock()
-				worker := newWorker()
+				worker := wp.workers.Get().(*worker)
 				worker.run(wp.workerQueue, wp.onPanic)
 				worker.jobQueue <- job
 			default:
