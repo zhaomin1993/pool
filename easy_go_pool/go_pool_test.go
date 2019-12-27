@@ -83,8 +83,6 @@ func TestWorkerPool_Close(t *testing.T) {
 			if i%10000 == 0 {
 				log.Println("send num:", i)
 			}
-			randNum := rand.Intn(10) + 1000
-			p.AdjustSize(uint16(randNum))
 		}
 		log.Println("start wait.....")
 		p.Close()
@@ -94,6 +92,14 @@ func TestWorkerPool_Close(t *testing.T) {
 	go func() {
 		time.Sleep(time.Second * 3)
 		p.Close()
+	}()
+	go func() {
+		rand.Seed(time.Now().Unix())
+		for {
+			time.Sleep(time.Second)
+			randNum := rand.Intn(10) + 1000
+			p.AdjustSize(uint16(randNum))
+		}
 	}()
 	for {
 		time.Sleep(1 * time.Second)

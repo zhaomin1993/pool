@@ -105,14 +105,10 @@ func TestWorkerPool_Close(t *testing.T) {
 		}()
 		for i := 1; i <= datanum; i++ {
 			sc := &Score{Num: i}
-			//log.Println("send num:-----", i)
 			if err := p.Accept(sc); err != nil {
 				fmt.Println("err:\t", err)
 				break
 			}
-			//log.Println("send num over:-----", i)
-			randNum := rand.Intn(10) + 1000
-			p.AdjustSize(uint16(randNum))
 		}
 		log.Println("start wait.....")
 		p.Close()
@@ -123,9 +119,14 @@ func TestWorkerPool_Close(t *testing.T) {
 		rand.Seed(time.Now().Unix())
 		randNum := rand.Intn(3) + 1
 		time.Sleep(time.Second * time.Duration(randNum))
-		//log.Println("after sleep.....")
 		p.Close()
-		//log.Println("close over.....")
+	}()
+	go func() {
+		for {
+			time.Sleep(time.Second)
+			randNum := rand.Intn(10) + 1000
+			p.AdjustSize(uint16(randNum))
+		}
 	}()
 	for {
 		time.Sleep(1 * time.Second)
