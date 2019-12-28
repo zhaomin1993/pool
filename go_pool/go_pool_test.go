@@ -37,6 +37,7 @@ func TestWorkerPool_Run(t *testing.T) {
 				log.Println(r)
 			}
 		}()
+		start := time.Now()
 		for i := 1; i <= datanum; i++ {
 			sc := &Score{Num: i}
 			if err := p.Accept(sc); err != nil {
@@ -51,6 +52,7 @@ func TestWorkerPool_Run(t *testing.T) {
 		}
 		log.Println("start wait.....")
 		//p.Close()
+		log.Printf("cost time:%s\n", time.Since(start).String())
 		log.Println("stop over.....")
 		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
 	}()
