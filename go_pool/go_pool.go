@@ -219,15 +219,19 @@ func (wp *workerPool) autoCutCap(interval time.Duration) {
 		for {
 			select {
 			case <-ticker.C:
-				wp.mux.RLock()
+				wp.mux.Lock()
 				length := len(wp.workerQueue)
-				if 1 < length && uint16(length) < wp.aliveNum {
+				if 1 < length && uint16(length) <= wp.aliveNum {
 					num := wp.aliveNum - uint16(length-1)/2
-					wp.mux.RUnlock()
-					wp.adjustNum(num)
-				} else {
-					wp.mux.RUnlock()
+					wp.workerNum = num
+					for num < wp.aliveNum {
+						wp.aliveNum--
+						worker := <-wp.workerQueue
+						worker.exit()
+						wp.workers.Put(worker)
+					}
 				}
+				wp.mux.Unlock()
 			case <-wp.stopAuto:
 				return
 			}
