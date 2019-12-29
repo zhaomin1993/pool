@@ -127,8 +127,8 @@ func (wp *workerPool) Accept(job job) (err error) {
 					}
 					return
 				} else {
+					wp.workerNum = wp.workerSize
 					wp.mux.Unlock()
-					wp.adjustNum(wp.workerSize)
 					err = wp.Accept(job)
 					return
 				}
@@ -168,22 +168,6 @@ func (wp *workerPool) AdjustSize(workSize uint16) {
 	}
 	wp.workerSize = workSize
 	for workSize < wp.aliveNum {
-		wp.aliveNum--
-		worker := <-wp.workerQueue
-		worker.exit()
-		wp.workers.Put(worker)
-	}
-	wp.mux.Unlock()
-}
-
-//调整协程数
-func (wp *workerPool) adjustNum(workNum uint16) {
-	wp.mux.Lock()
-	if workNum > wp.workerSize {
-		workNum = wp.workerSize
-	}
-	wp.workerNum = workNum
-	for workNum < wp.aliveNum {
 		wp.aliveNum--
 		worker := <-wp.workerQueue
 		worker.exit()
