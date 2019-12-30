@@ -206,7 +206,7 @@ func (wp *workerPool) autoCutCap(interval time.Duration) {
 				wp.mux.Lock()
 				length := len(wp.workerQueue)
 				if 1 < length && uint16(length) <= wp.aliveNum {
-					num := wp.aliveNum - uint16(length/2)
+					num := wp.aliveNum - uint16(length>>1)
 					wp.workerNum = num
 					for num < wp.aliveNum {
 						wp.aliveNum--
