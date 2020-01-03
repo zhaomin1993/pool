@@ -46,7 +46,7 @@ func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	}()
 }
 
-func (w *worker) exit() {
+func (w *worker) stopRun() {
 	w.stop <- struct{}{}
 }
 
@@ -170,7 +170,7 @@ func (wp *workerPool) AdjustSize(workSize uint16) {
 	for workSize < wp.aliveNum {
 		wp.aliveNum--
 		worker := <-wp.workerQueue
-		worker.exit()
+		worker.stopRun()
 		wp.workers.Put(worker)
 	}
 	wp.mux.Unlock()
@@ -211,7 +211,7 @@ func (wp *workerPool) autoCutCap(interval time.Duration) {
 					for num < wp.aliveNum {
 						wp.aliveNum--
 						worker := <-wp.workerQueue
-						worker.exit()
+						worker.stopRun()
 						wp.workers.Put(worker)
 					}
 				}
