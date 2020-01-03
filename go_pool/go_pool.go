@@ -126,12 +126,11 @@ func (wp *workerPool) Accept(job job) (err error) {
 						err = errors.New("worker pool has been closed")
 					}
 					return
-				} else {
-					wp.workerNum = wp.workerSize
-					wp.mux.Unlock()
-					err = wp.Accept(job)
-					return
 				}
+				wp.workerNum = wp.workerSize
+				wp.mux.Unlock()
+				err = wp.Accept(job)
+				return
 			case wp.aliveNum < wp.workerNum:
 				wp.aliveNum++
 				wp.mux.Unlock()
