@@ -198,7 +198,6 @@ func (wp *workerPool) Close() {
 func (wp *workerPool) autoCutCap(interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
-		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
@@ -216,6 +215,7 @@ func (wp *workerPool) autoCutCap(interval time.Duration) {
 				}
 				wp.mux.Unlock()
 			case <-wp.stopAuto:
+				ticker.Stop()
 				return
 			}
 		}
