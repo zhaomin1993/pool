@@ -19,7 +19,7 @@ type worker struct {
 func newWorker() *worker {
 	return &worker{jobQueue: make(chan job), stop: make(chan struct{})}
 }
-func (w *worker) run(wq chan *worker, onPanic func(msg interface{})) {
+func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {

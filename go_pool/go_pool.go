@@ -23,7 +23,7 @@ func newWorker() *worker {
 }
 
 //工人进入工作状态
-func (w *worker) run(wq chan *worker, onPanic func(msg interface{})) {
+func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
