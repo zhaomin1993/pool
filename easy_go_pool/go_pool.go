@@ -19,6 +19,7 @@ type worker struct {
 func newWorker() *worker {
 	return &worker{jobQueue: make(chan job), stop: make(chan struct{})}
 }
+
 func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	go func() {
 		defer func() {
@@ -92,15 +93,7 @@ func (wp *workerPool) Accept(job job) (err error) {
 			}
 		default:
 			var worker *worker
-			if wp.closed {
-				wp.mux.Unlock()
-				err = errors.New("worker pool has been closed")
-				return
-			} else if wp.workerNum == 0 {
-				wp.mux.Unlock()
-				err = errors.New("has no worker")
-				return
-			} else if wp.aliveNum == wp.workerNum {
+			if wp.aliveNum == wp.workerNum {
 				wp.mux.Unlock()
 				worker = <-wp.workerQueue
 			} else if wp.aliveNum < wp.workerNum {
@@ -135,10 +128,21 @@ func (wp *workerPool) Cap() uint16 {
 //调整协程数
 func (wp *workerPool) AdjustSize(workNum uint16) {
 	wp.mux.Lock()
+	if wp.closed {
+		wp.mux.Unlock()
+		return
+	}
 	if workNum > wp.maxNum {
 		workNum = wp.maxNum
 	}
+	oldNum := wp.workerNum
 	wp.workerNum = workNum
+	if oldNum == 0 && workNum > 0 {
+		wp.aliveNum++
+		worker := newWorker()
+		worker.run(wp.workerQueue, wp.onPanic)
+		wp.workerQueue <- worker
+	}
 	for workNum < wp.aliveNum {
 		wp.aliveNum--
 		worker := <-wp.workerQueue

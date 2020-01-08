@@ -64,6 +64,7 @@ type workerPool struct {
 	aliveNum    uint16
 	workerNum   uint16
 	workerSize  uint16
+	blockAccept uint16
 	workers     sync.Pool
 	mux         sync.RWMutex
 	closeOnce   sync.Once
@@ -109,16 +110,11 @@ func (wp *workerPool) Accept(job job) (err error) {
 			}
 		default:
 			switch {
-			case wp.closed:
-				wp.mux.Unlock()
-				err = errors.New("worker pool has been closed")
 			case wp.aliveNum == wp.workerNum:
-				if wp.workerSize == 0 {
-					wp.mux.Unlock()
-					err = errors.New("has no worker")
-					return
-				}
 				if wp.workerNum == wp.workerSize {
+					if wp.workerSize == 0 {
+						wp.blockAccept++
+					}
 					wp.mux.Unlock()
 					worker := <-wp.workerQueue
 					if worker != nil {
@@ -131,7 +127,6 @@ func (wp *workerPool) Accept(job job) (err error) {
 				wp.workerNum = wp.workerSize
 				wp.mux.Unlock()
 				err = wp.Accept(job)
-				return
 			case wp.aliveNum < wp.workerNum:
 				wp.aliveNum++
 				wp.mux.Unlock()
@@ -160,13 +155,32 @@ func (wp *workerPool) Cap() uint16 {
 //调整协程池大小
 func (wp *workerPool) AdjustSize(workSize uint16) {
 	wp.mux.Lock()
+	if wp.closed {
+		wp.mux.Unlock()
+		return
+	}
 	if workSize > wp.maxSize {
 		workSize = wp.maxSize
 	}
 	if wp.workerNum > workSize {
 		wp.workerNum = workSize
 	}
+	oldSize := wp.workerSize
 	wp.workerSize = workSize
+	if oldSize == 0 && workSize > 0 {
+		times := wp.blockAccept
+		if workSize < wp.blockAccept {
+			times = workSize
+		}
+		wp.blockAccept = 0
+		for i := uint16(0); i < times; i++ {
+			wp.aliveNum++
+			wp.workerNum++
+			worker := wp.workers.Get().(*worker)
+			worker.run(wp.workerQueue, wp.onPanic)
+			wp.workerQueue <- worker
+		}
+	}
 	for workSize < wp.aliveNum {
 		wp.aliveNum--
 		worker := <-wp.workerQueue

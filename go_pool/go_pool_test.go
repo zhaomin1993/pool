@@ -20,7 +20,7 @@ func (s *Score) Do() {
 	if s.Num%2 == 0 {
 		panic(s.Num)
 	}
-	time.Sleep(time.Millisecond * 10)
+	time.Sleep(time.Millisecond * 100)
 }
 
 //go test -v -test.run TestWorkerPool_Run
@@ -128,6 +128,86 @@ func TestWorkerPool_Close(t *testing.T) {
 			time.Sleep(time.Second)
 			randNum := rand.Intn(10) + 1000
 			p.AdjustSize(uint16(randNum))
+		}
+	}()
+	for {
+		time.Sleep(1 * time.Second)
+		log.Printf("runtime.NumGoroutine() :%d\n", runtime.NumGoroutine())
+	}
+}
+
+//go test -v -test.run TestWorkerPool_AdjustSize
+func TestWorkerPool_AdjustSize(t *testing.T) {
+	log.Println("runtime.NumGoroutine() :", runtime.NumGoroutine())
+	p := NewWorkerPool(1000, 1100, time.Second)
+	p.OnPanic(func(msg interface{}) {
+		//log.Println("error:", msg)
+	})
+	datanum := 100 * 100 * 100
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Println(r)
+			}
+		}()
+		for i := 1; i <= datanum; i++ {
+			sc := &Score{Num: i}
+			if err := p.Accept(sc); err != nil {
+				fmt.Println("err:\t", err)
+				break
+			}
+		}
+		log.Println("start wait.....")
+		p.Close()
+		log.Println("stop over.....")
+		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
+	}()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Println(r)
+			}
+		}()
+		for i := 1; i <= datanum; i++ {
+			sc := &Score{Num: i}
+			if err := p.Accept(sc); err != nil {
+				fmt.Println("err:\t", err)
+				break
+			}
+		}
+		log.Println("start wait.....")
+		p.Close()
+		log.Println("stop over.....")
+		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
+	}()
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Println(r)
+			}
+		}()
+		for i := 1; i <= datanum; i++ {
+			sc := &Score{Num: i}
+			if err := p.Accept(sc); err != nil {
+				fmt.Println("err:\t", err)
+				break
+			}
+		}
+		log.Println("start wait.....")
+		p.Close()
+		log.Println("stop over.....")
+		log.Println("the last runtime.NumGoroutine() :", runtime.NumGoroutine())
+	}()
+	go func() {
+		num := 0
+		for {
+			time.Sleep(time.Second)
+			num++
+			if num%2 == 0 {
+				p.AdjustSize(0)
+			} else {
+				p.AdjustSize(1000)
+			}
 		}
 	}()
 	for {
