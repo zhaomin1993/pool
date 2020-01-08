@@ -81,8 +81,10 @@ func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 //协程池接收任务
 func (wp *workerPool) Accept(job job) (err error) {
 	if job != nil {
+		wp.mux.Lock()
 		select {
 		case worker := <-wp.workerQueue:
+			wp.mux.Unlock()
 			if worker != nil {
 				worker.jobQueue <- job
 			} else {
@@ -90,7 +92,6 @@ func (wp *workerPool) Accept(job job) (err error) {
 			}
 		default:
 			var worker *worker
-			wp.mux.Lock()
 			if wp.closed {
 				wp.mux.Unlock()
 				err = errors.New("worker pool has been closed")
