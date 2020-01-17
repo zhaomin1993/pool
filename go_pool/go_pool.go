@@ -196,6 +196,16 @@ func (wp *workerPool) AdjustSize(workSize uint16) {
 	wp.mux.Unlock()
 }
 
+//暂停
+func (wp *workerPool) Pause() {
+	wp.AdjustSize(0)
+}
+
+//继续
+func (wp *workerPool) Continue(num uint16) {
+	wp.AdjustSize(num)
+}
+
 //关闭协程池
 func (wp *workerPool) Close() {
 	wp.closeOnce.Do(func() {
