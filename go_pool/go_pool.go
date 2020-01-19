@@ -112,20 +112,13 @@ func (wp *workerPool) Accept(job job) (err error) {
 			switch {
 			case wp.aliveNum == wp.workerNum:
 				if wp.workerNum == wp.workerSize {
-					pause := false
 					if wp.workerSize == 0 {
 						wp.blockAccept++
-						pause = true
 					}
 					wp.mux.Unlock()
 					worker := <-wp.workerQueue
 					if worker != nil {
 						worker.jobQueue <- job
-						if pause {
-							wp.mux.Lock()
-							wp.blockAccept--
-							wp.mux.Unlock()
-						}
 					} else {
 						err = errors.New("worker pool has been closed")
 					}
@@ -172,14 +165,15 @@ func (wp *workerPool) AdjustSize(workSize uint16) {
 	if wp.workerNum > workSize {
 		wp.workerNum = workSize
 	}
+	oldSize := wp.workerSize
 	wp.workerSize = workSize
-	if workSize > 0 && wp.blockAccept > 0 {
+	if oldSize == 0 && workSize > 0 && wp.blockAccept > 0 {
 		times := wp.blockAccept
 		if workSize < wp.blockAccept {
 			times = workSize
 		}
+		wp.blockAccept = 0
 		for i := uint16(0); i < times; i++ {
-			wp.blockAccept--
 			wp.aliveNum++
 			wp.workerNum++
 			worker := wp.workers.Get().(*worker)
