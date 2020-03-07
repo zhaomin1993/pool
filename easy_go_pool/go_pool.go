@@ -81,38 +81,38 @@ func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 
 //协程池接收任务
 func (wp *workerPool) Accept(job job) (err error) {
-	if job != nil {
-		wp.mux.Lock()
-		select {
-		case worker := <-wp.workerQueue:
-			wp.mux.Unlock()
-			if worker != nil {
-				worker.jobQueue <- job
-			} else {
-				err = errors.New("worker pool has been closed")
-			}
-		default:
-			var worker *worker
-			if wp.aliveNum == wp.workerNum {
-				wp.mux.Unlock()
-				worker = <-wp.workerQueue
-			} else if wp.aliveNum < wp.workerNum {
-				wp.aliveNum++
-				wp.mux.Unlock()
-				worker = newWorker()
-				worker.run(wp.workerQueue, wp.onPanic)
-			} else {
-				wp.mux.Unlock()
-				panic("worker number less than alive number")
-			}
-			if worker != nil {
-				worker.jobQueue <- job
-			} else {
-				err = errors.New("worker pool has been closed")
-			}
-		}
-	} else {
+	if job == nil {
 		err = errors.New("job can not be nil")
+		return
+	}
+	wp.mux.Lock()
+	select {
+	case worker := <-wp.workerQueue:
+		wp.mux.Unlock()
+		if worker != nil {
+			worker.jobQueue <- job
+		} else {
+			err = errors.New("worker pool has been closed")
+		}
+	default:
+		var worker *worker
+		if wp.aliveNum == wp.workerNum {
+			wp.mux.Unlock()
+			worker = <-wp.workerQueue
+		} else if wp.aliveNum < wp.workerNum {
+			wp.aliveNum++
+			wp.mux.Unlock()
+			worker = newWorker()
+			worker.run(wp.workerQueue, wp.onPanic)
+		} else {
+			wp.mux.Unlock()
+			panic("worker number less than alive number")
+		}
+		if worker != nil {
+			worker.jobQueue <- job
+		} else {
+			err = errors.New("worker pool has been closed")
+		}
 	}
 	return
 }

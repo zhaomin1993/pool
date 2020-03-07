@@ -99,47 +99,47 @@ func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 //协程池接收任务
 func (wp *workerPool) Accept(job job) (err error) {
 	if job != nil {
-		wp.mux.Lock()
-		select {
-		case worker := <-wp.workerQueue:
-			wp.mux.Unlock()
-			if worker != nil {
-				worker.jobQueue <- job
-			} else {
-				err = errors.New("worker pool has been closed")
-			}
-		default:
-			switch {
-			case wp.aliveNum == wp.workerNum:
-				if wp.workerNum == wp.workerSize {
-					if wp.workerSize == 0 {
-						wp.blockAccept++
-					}
-					wp.mux.Unlock()
-					worker := <-wp.workerQueue
-					if worker != nil {
-						worker.jobQueue <- job
-					} else {
-						err = errors.New("worker pool has been closed")
-					}
-					return
-				}
-				wp.workerNum = wp.workerSize
-				wp.mux.Unlock()
-				err = wp.Accept(job)
-			case wp.aliveNum < wp.workerNum:
-				wp.aliveNum++
-				wp.mux.Unlock()
-				worker := wp.workers.Get().(*worker)
-				worker.run(wp.workerQueue, wp.onPanic)
-				worker.jobQueue <- job
-			default:
-				wp.mux.Unlock()
-				panic("worker number less than alive number")
-			}
-		}
-	} else {
 		err = errors.New("job can not be nil")
+		return
+	}
+	wp.mux.Lock()
+	select {
+	case worker := <-wp.workerQueue:
+		wp.mux.Unlock()
+		if worker != nil {
+			worker.jobQueue <- job
+		} else {
+			err = errors.New("worker pool has been closed")
+		}
+	default:
+		switch {
+		case wp.aliveNum == wp.workerNum:
+			if wp.workerNum == wp.workerSize {
+				if wp.workerSize == 0 {
+					wp.blockAccept++
+				}
+				wp.mux.Unlock()
+				worker := <-wp.workerQueue
+				if worker != nil {
+					worker.jobQueue <- job
+				} else {
+					err = errors.New("worker pool has been closed")
+				}
+				return
+			}
+			wp.workerNum = wp.workerSize
+			wp.mux.Unlock()
+			err = wp.Accept(job)
+		case wp.aliveNum < wp.workerNum:
+			wp.aliveNum++
+			wp.mux.Unlock()
+			worker := wp.workers.Get().(*worker)
+			worker.run(wp.workerQueue, wp.onPanic)
+			worker.jobQueue <- job
+		default:
+			wp.mux.Unlock()
+			panic("worker number less than alive number")
+		}
 	}
 	return
 }
