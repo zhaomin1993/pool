@@ -98,7 +98,7 @@ func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 
 //协程池接收任务
 func (wp *workerPool) Accept(job job) (err error) {
-	if job != nil {
+	if job == nil {
 		err = errors.New("job can not be nil")
 		return
 	}
