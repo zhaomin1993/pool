@@ -28,7 +28,7 @@ type Score struct {
 	Num int
 }
 
-func (s *Score) Do() {
+func (s Score) Do() {
 	if s.Num%10000 == 0 {
 		log.Println("num:", s.Num)
 	}
@@ -48,7 +48,7 @@ func main() {
 	datanum := 100 * 100 * 10
 	for i := 1; i <= datanum; i++ {
 		//接收任务
-		if err := pool.Accept(&Score{Num: i}); err != nil {
+		if err := pool.Accept(Score{Num: i}); err != nil {
 			log.Println("err:\t", err)
 			break
 		}
