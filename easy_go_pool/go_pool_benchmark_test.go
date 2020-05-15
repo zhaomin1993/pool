@@ -7,12 +7,12 @@ import (
 )
 
 const (
-	RunTimes           = 1000000
-	BenchParam         = 10
-	BenchAntsSize      = 20000
+	RunTimes    = 1000000
+	BenchParam  = 10
+	BenchGoSize = 20000
 )
 
-type obj struct {}
+type obj struct{}
 
 func (obj) Do() {
 	demoFunc()
@@ -42,7 +42,7 @@ func BenchmarkGoroutines(b *testing.B) {
 //BenchmarkSemaphore-8                           2         651259850 ns/op        64292344 B/op    1001274 allocs/op
 func BenchmarkSemaphore(b *testing.B) {
 	var wg sync.WaitGroup
-	sema := make(chan struct{}, BenchAntsSize)
+	sema := make(chan struct{}, BenchGoSize)
 
 	for i := 0; i < b.N; i++ {
 		wg.Add(RunTimes)
@@ -61,7 +61,7 @@ func BenchmarkSemaphore(b *testing.B) {
 //go test -bench=BenchmarkGoPool -benchmem=true -run=none
 //BenchmarkGoPool-8                            2         638791000 ns/op         3654000 B/op      48113 allocs/op
 func BenchmarkGoPool(b *testing.B) {
-	p := NewWorkerPool(uint16(BenchAntsSize), uint16(BenchAntsSize))
+	p := NewWorkerPool(uint16(BenchGoSize), uint16(BenchGoSize))
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
@@ -84,7 +84,7 @@ func BenchmarkGoroutinesThroughput(b *testing.B) {
 
 //BenchmarkSemaphoreThroughput-8                 2         631312300 ns/op        64034400 B/op    1000145 allocs/op
 func BenchmarkSemaphoreThroughput(b *testing.B) {
-	sema := make(chan struct{}, BenchAntsSize)
+	sema := make(chan struct{}, BenchGoSize)
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
 			sema <- struct{}{}
@@ -98,7 +98,7 @@ func BenchmarkSemaphoreThroughput(b *testing.B) {
 
 //BenchmarkGoPoolThroughput-8                  2         644277400 ns/op         8187200 B/op      61301 allocs/op
 func BenchmarkGoPoolThroughput(b *testing.B) {
-	p := NewWorkerPool(uint16(BenchAntsSize), uint16(BenchAntsSize))
+	p := NewWorkerPool(uint16(BenchGoSize), uint16(BenchGoSize))
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
