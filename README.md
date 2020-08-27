@@ -18,7 +18,7 @@
 package main
 
 import (
-	epool "github.com/z-yuanhao/pool/easy_go_pool"
+	epool "github.com/zhaomin1993/pool/easy_go_pool"
 	"log"
 	"math/rand"
 	"time"
@@ -63,8 +63,8 @@ func main() {
 ```
 
 ##### benchmark 测试
-![1.png](https://raw.githubusercontent.com/z-yuanhao/pool/master/images/1.png)
-![2.png](https://raw.githubusercontent.com/z-yuanhao/pool/master/images/2.png)
-![3.png](https://raw.githubusercontent.com/z-yuanhao/pool/master/images/3.png)
-![4.jpg](https://raw.githubusercontent.com/z-yuanhao/pool/master/images/4.jpg)
-![5.png](https://raw.githubusercontent.com/z-yuanhao/pool/master/images/5.png)
+![1.png](https://raw.githubusercontent.com/zhaomin1993/pool/master/images/1.png)
+![2.png](https://raw.githubusercontent.com/zhaomin1993/pool/master/images/2.png)
+![3.png](https://raw.githubusercontent.com/zhaomin1993/pool/master/images/3.png)
+![4.jpg](https://raw.githubusercontent.com/zhaomin1993/pool/master/images/4.jpg)
+![5.png](https://raw.githubusercontent.com/zhaomin1993/pool/master/images/5.png)
