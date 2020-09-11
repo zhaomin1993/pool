@@ -1,6 +1,7 @@
 package go_pool
 
 import (
+	"github.com/panjf2000/ants"
 	"sync"
 	"testing"
 	"time"
@@ -59,8 +60,29 @@ func BenchmarkSemaphore(b *testing.B) {
 	}
 }
 
+//go test -bench=BenchmarkAntsPool -benchmem=true -run=none
+//BenchmarkAntsPool-8                            2         593923650 ns/op        21303400 B/op    1066102 allocs/op
+func BenchmarkAntsPool(b *testing.B) {
+	var wg sync.WaitGroup
+	p, _ := ants.NewPool(BenchGoSize, ants.WithExpiryDuration(DefaultExpiredTime))
+	defer p.Release()
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		wg.Add(RunTimes)
+		for j := 0; j < RunTimes; j++ {
+			_ = p.Submit(func() {
+				demoFunc()
+				wg.Done()
+			})
+		}
+		wg.Wait()
+	}
+	b.StopTimer()
+}
+
 //go test -bench=BenchmarkGoPool -benchmem=true -run=none
-//BenchmarkGoPool-8                      2         645773800 ns/op         3646412 B/op      47589 allocs/op
+//BenchmarkGoPool-8                      2         571007850 ns/op         3657388 B/op      46307 allocs/op
 func BenchmarkGoPool(b *testing.B) {
 	p := NewWorkerPool(uint16(BenchGoSize), uint16(BenchGoSize), DefaultExpiredTime)
 
@@ -97,13 +119,27 @@ func BenchmarkSemaphoreThroughput(b *testing.B) {
 	}
 }
 
-//BenchmarkGoPoolThroughput-8            2         643280650 ns/op         8380768 B/op      62874 allocs/op
+//BenchmarkGoPoolThroughput-8            2         581976150 ns/op         3570988 B/op      46128 allocs/op
 func BenchmarkGoPoolThroughput(b *testing.B) {
 	p := NewWorkerPool(uint16(BenchGoSize), uint16(BenchGoSize), DefaultExpiredTime)
+	defer p.Close()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
 			_ = p.Accept(obj{})
+		}
+	}
+	b.StopTimer()
+}
+
+//BenchmarkAntsPoolThroughput-8                  2         550545450 ns/op         2504716 B/op      41251 allocs/op
+func BenchmarkAntsPoolThroughput(b *testing.B) {
+	p, _ := ants.NewPool(BenchGoSize, ants.WithExpiryDuration(DefaultExpiredTime))
+	defer p.Release()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < RunTimes; j++ {
+			_ = p.Submit(demoFunc)
 		}
 	}
 	b.StopTimer()
