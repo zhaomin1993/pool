@@ -1,6 +1,7 @@
 package go_pool
 
 import (
+	"github.com/panjf2000/ants"
 	"sync"
 	"testing"
 	"time"
@@ -58,18 +59,39 @@ func BenchmarkSemaphore(b *testing.B) {
 	}
 }
 
+//go test -bench=BenchmarkAntsPool -benchmem=true -run=none
+//BenchmarkAntsPool-8                            2         587444950 ns/op        20669048 B/op    1059622 allocs/op
+func BenchmarkAntsPool(b *testing.B) {
+	var wg sync.WaitGroup
+	p, _ := ants.NewPool(BenchGoSize, ants.WithExpiryDuration(10*time.Second))
+	defer p.Release()
+
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		wg.Add(RunTimes)
+		for j := 0; j < RunTimes; j++ {
+			_ = p.Submit(func() {
+				demoFunc()
+				wg.Done()
+			})
+		}
+		wg.Wait()
+	}
+	b.StopTimer()
+}
+
 //go test -bench=BenchmarkGoPool -benchmem=true -run=none
-//BenchmarkGoPool-8                            2         638791000 ns/op         3654000 B/op      48113 allocs/op
+//BenchmarkGoPool-8                      2         564994050 ns/op         3521408 B/op      45269 allocs/op
 func BenchmarkGoPool(b *testing.B) {
 	p := NewWorkerPool(uint16(BenchGoSize), uint16(BenchGoSize))
-
+	defer p.Close()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
 			_ = p.Accept(obj{})
 		}
 	}
-	p.Close()
+	//p.Close()
 	b.StopTimer()
 }
 
@@ -96,13 +118,27 @@ func BenchmarkSemaphoreThroughput(b *testing.B) {
 	}
 }
 
-//BenchmarkGoPoolThroughput-8                  2         644277400 ns/op         8187200 B/op      61301 allocs/op
+//BenchmarkGoPoolThroughput-8            2         562498700 ns/op         3385600 B/op      43775 allocs/op
 func BenchmarkGoPoolThroughput(b *testing.B) {
 	p := NewWorkerPool(uint16(BenchGoSize), uint16(BenchGoSize))
+	defer p.Close()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
 			_ = p.Accept(obj{})
+		}
+	}
+	b.StopTimer()
+}
+
+//BenchmarkAntsPoolThroughput-8                  2         552554100 ns/op         2588784 B/op      41928 allocs/op
+func BenchmarkAntsPoolThroughput(b *testing.B) {
+	p, _ := ants.NewPool(BenchGoSize, ants.WithExpiryDuration(10*time.Second))
+	defer p.Release()
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		for j := 0; j < RunTimes; j++ {
+			_ = p.Submit(demoFunc)
 		}
 	}
 	b.StopTimer()
