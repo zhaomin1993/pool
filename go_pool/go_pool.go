@@ -145,7 +145,7 @@ func (wp *workerPool) Accept(job job) (err error) {
 }
 
 //获取协程数
-func (wp *workerPool) Cap() uint16 {
+func (wp *workerPool) Len() uint16 {
 	wp.mux.RLock()
 	num := wp.aliveNum
 	wp.mux.RUnlock()
