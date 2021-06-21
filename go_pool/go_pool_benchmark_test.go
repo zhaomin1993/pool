@@ -88,9 +88,11 @@ func BenchmarkGoPool(b *testing.B) {
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
+		p.AdjustSize(uint16(BenchGoSize))
 		for j := 0; j < RunTimes; j++ {
 			_ = p.Accept(obj{})
 		}
+		p.AdjustSize(0)
 	}
 	p.Close()
 	b.StopTimer()
