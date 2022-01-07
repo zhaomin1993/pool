@@ -27,11 +27,11 @@ func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
+				w.run(wq, onPanic)
+				wq <- w
 				if onPanic != nil {
 					onPanic(r)
 				}
-				w.run(wq, onPanic)
-				wq <- w
 			}
 		}()
 		for {
