@@ -5,21 +5,23 @@ import (
 	"sync"
 )
 
-// --------------------------- Job ---------------------
+// job 工作接口
 type job interface {
 	Do() //不允许永远阻塞,代码要求高
 }
 
-// --------------------------- Worker ---------------------
+// worker 工人
 type worker struct {
 	jobQueue chan job
 	stop     chan struct{}
 }
 
+// newWorker 新建一个工人
 func newWorker() *worker {
 	return &worker{jobQueue: make(chan job), stop: make(chan struct{})}
 }
 
+// run 工人开始工作
 func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	go func() {
 		defer func() {
@@ -43,13 +45,14 @@ func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	}()
 }
 
+// close 关闭并回收工人
 func (w *worker) close() {
 	w.stop <- struct{}{}
 	close(w.stop)
 	close(w.jobQueue)
 }
 
-// --------------------------- WorkerPool ---------------------
+// workerPool 工厂
 type workerPool struct {
 	closed      bool
 	maxNum      uint16
@@ -61,7 +64,7 @@ type workerPool struct {
 	onPanic     func(msg interface{})
 }
 
-//创建协程池
+// NewWorkerPool 创建工厂
 func NewWorkerPool(workerNum, maxNum uint16) *workerPool {
 	if workerNum > maxNum {
 		workerNum = maxNum
@@ -75,11 +78,12 @@ func NewWorkerPool(workerNum, maxNum uint16) *workerPool {
 	}
 }
 
+// OnPanic 设置工作中出问题时的处理方法
 func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 	wp.onPanic = onPanic
 }
 
-//协程池接收任务
+// Accept 工厂接收工作任务
 func (wp *workerPool) Accept(job job) (err error) {
 	if job == nil {
 		err = errors.New("job can not be nil")
@@ -117,7 +121,7 @@ func (wp *workerPool) Accept(job job) (err error) {
 	return
 }
 
-//获取协程数
+// Len 工厂活跃工人数
 func (wp *workerPool) Len() uint16 {
 	wp.mux.RLock()
 	num := wp.aliveNum
@@ -125,7 +129,7 @@ func (wp *workerPool) Len() uint16 {
 	return num
 }
 
-//调整协程数
+// AdjustSize 调整工厂工人数量
 func (wp *workerPool) AdjustSize(workNum uint16) {
 	wp.mux.Lock()
 	if wp.closed {
@@ -151,17 +155,17 @@ func (wp *workerPool) AdjustSize(workNum uint16) {
 	wp.mux.Unlock()
 }
 
-//暂停
+// Pause 工厂暂停工作
 func (wp *workerPool) Pause() {
 	wp.AdjustSize(0)
 }
 
-//继续
+// Continue 工厂继续工作
 func (wp *workerPool) Continue(num uint16) {
 	wp.AdjustSize(num)
 }
 
-//关闭协程池
+// Close 关闭并回收工厂
 func (wp *workerPool) Close() {
 	wp.closeOnce.Do(func() {
 		wp.mux.Lock()
