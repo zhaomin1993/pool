@@ -3,8 +3,8 @@ package go_pool
 import (
 	"github.com/panjf2000/ants"
 	"sync"
+	"sync/atomic"
 	"testing"
-	"time"
 )
 
 const (
@@ -13,14 +13,18 @@ const (
 	BenchGoSize = 20000
 )
 
-type obj struct{}
+type obj int32
 
-func (obj) Do() {
-	demoFunc()
+func (this obj) Do() {
+	myFunc(int32(this))
 }
 
-func demoFunc() {
-	time.Sleep(time.Duration(BenchParam) * time.Millisecond)
+var sum int32
+
+func myFunc(i interface{}) {
+	n := i.(int32)
+	atomic.AddInt32(&sum, n)
+	// fmt.Printf("run with %d\n", n)
 }
 
 //go test -bench=BenchmarkGoroutines -benchmem=true -run=none
@@ -31,7 +35,7 @@ func BenchmarkGoroutines(b *testing.B) {
 		wg.Add(RunTimes)
 		for j := 0; j < RunTimes; j++ {
 			go func() {
-				demoFunc()
+				myFunc(int32(j))
 				wg.Done()
 			}()
 		}
@@ -50,7 +54,7 @@ func BenchmarkSemaphore(b *testing.B) {
 		for j := 0; j < RunTimes; j++ {
 			sema <- struct{}{}
 			go func() {
-				demoFunc()
+				myFunc(int32(j))
 				<-sema
 				wg.Done()
 			}()
@@ -63,17 +67,17 @@ func BenchmarkSemaphore(b *testing.B) {
 //BenchmarkAntsPool-8                            2         587444950 ns/op        20669048 B/op    1059622 allocs/op
 func BenchmarkAntsPool(b *testing.B) {
 	var wg sync.WaitGroup
-	p, _ := ants.NewPool(BenchGoSize, ants.WithExpiryDuration(10*time.Second))
+	p, _ := ants.NewPoolWithFunc(BenchGoSize, func(i interface{}) {
+		myFunc(i)
+		wg.Done()
+	})
 	defer p.Release()
 
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		wg.Add(RunTimes)
 		for j := 0; j < RunTimes; j++ {
-			_ = p.Submit(func() {
-				demoFunc()
-				wg.Done()
-			})
+			p.Invoke(int32(j))
 		}
 		wg.Wait()
 	}
@@ -89,7 +93,7 @@ func BenchmarkGoPool(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		p.AdjustSize(uint16(BenchGoSize))
 		for j := 0; j < RunTimes; j++ {
-			_ = p.Accept(obj{})
+			_ = p.Accept(obj(j))
 		}
 		p.AdjustSize(0)
 	}
@@ -100,7 +104,7 @@ func BenchmarkGoPool(b *testing.B) {
 func BenchmarkGoroutinesThroughput(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
-			go demoFunc()
+			go myFunc(int32(j))
 		}
 	}
 }
@@ -112,7 +116,7 @@ func BenchmarkSemaphoreThroughput(b *testing.B) {
 		for j := 0; j < RunTimes; j++ {
 			sema <- struct{}{}
 			go func() {
-				demoFunc()
+				myFunc(int32(j))
 				<-sema
 			}()
 		}
@@ -126,7 +130,7 @@ func BenchmarkGoPoolThroughput(b *testing.B) {
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
-			_ = p.Accept(obj{})
+			_ = p.Accept(obj(j))
 		}
 	}
 	b.StopTimer()
@@ -134,12 +138,14 @@ func BenchmarkGoPoolThroughput(b *testing.B) {
 
 //BenchmarkAntsPoolThroughput-8                  2         552554100 ns/op         2588784 B/op      41928 allocs/op
 func BenchmarkAntsPoolThroughput(b *testing.B) {
-	p, _ := ants.NewPool(BenchGoSize, ants.WithExpiryDuration(10*time.Second))
+	p, _ := ants.NewPoolWithFunc(BenchGoSize, func(i interface{}) {
+		myFunc(i)
+	})
 	defer p.Release()
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
 		for j := 0; j < RunTimes; j++ {
-			_ = p.Submit(demoFunc)
+			_ = p.Invoke(int32(j))
 		}
 	}
 	b.StopTimer()
