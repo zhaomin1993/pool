@@ -3,22 +3,19 @@ package go_pool
 import (
 	"errors"
 	"sync"
-)
 
-// job 工作接口
-type job interface {
-	Do() //不允许永远阻塞,代码要求高
-}
+	"github.com/zhaomin1993/pool/internal"
+)
 
 // worker 工人
 type worker struct {
-	jobQueue chan job
+	jobQueue chan internal.Job
 	stop     chan struct{}
 }
 
 // newWorker 新建一个工人
 func newWorker() *worker {
-	return &worker{jobQueue: make(chan job), stop: make(chan struct{})}
+	return &worker{jobQueue: make(chan internal.Job), stop: make(chan struct{})}
 }
 
 // run 工人开始工作
@@ -84,7 +81,7 @@ func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 }
 
 // Accept 工厂接收工作任务
-func (wp *workerPool) Accept(job job) (err error) {
+func (wp *workerPool) Accept(job internal.Job) (err error) {
 	if job == nil {
 		err = errors.New("job can not be nil")
 		return

@@ -4,25 +4,22 @@ import (
 	"errors"
 	"sync"
 	"time"
-)
 
-// --------------------------- Job ---------------------
-type job interface {
-	Do() //不允许永远阻塞,代码要求高
-}
+	"github.com/zhaomin1993/pool/internal"
+)
 
 // --------------------------- Worker ---------------------
 type worker struct {
-	jobQueue chan job
+	jobQueue chan internal.Job
 	stop     chan struct{}
 }
 
-//创建一个工人
+// run 创建一个工人
 func newWorker() *worker {
-	return &worker{jobQueue: make(chan job), stop: make(chan struct{})}
+	return &worker{jobQueue: make(chan internal.Job), stop: make(chan struct{})}
 }
 
-//工人进入工作状态
+// run 工人进入工作状态
 func (w *worker) run(wq chan<- *worker, onPanic func(msg interface{})) {
 	go func() {
 		defer func() {
@@ -50,7 +47,7 @@ func (w *worker) stopRun() {
 	w.stop <- struct{}{}
 }
 
-//回收工人
+// close 回收工人
 func (w *worker) close() {
 	w.stop <- struct{}{}
 	close(w.stop)
@@ -73,7 +70,7 @@ type workerPool struct {
 	onPanic     func(msg interface{})
 }
 
-//创建协程池
+// NewWorkerPool 创建协程池
 func NewWorkerPool(workerNum, maxSize uint16, interval time.Duration) *workerPool {
 	wp := &workerPool{
 		maxSize:     maxSize,
@@ -96,8 +93,8 @@ func (wp *workerPool) OnPanic(onPanic func(msg interface{})) {
 	wp.onPanic = onPanic
 }
 
-//协程池接收任务
-func (wp *workerPool) Accept(job job) (err error) {
+// Accept 协程池接收任务
+func (wp *workerPool) Accept(job internal.Job) (err error) {
 	if job == nil {
 		err = errors.New("job can not be nil")
 		return
@@ -144,7 +141,7 @@ func (wp *workerPool) Accept(job job) (err error) {
 	return
 }
 
-//获取协程数
+// Len 获取协程数
 func (wp *workerPool) Len() uint16 {
 	wp.mux.RLock()
 	num := wp.aliveNum
@@ -152,7 +149,7 @@ func (wp *workerPool) Len() uint16 {
 	return num
 }
 
-//调整协程池大小
+// AdjustSize 调整协程池大小
 func (wp *workerPool) AdjustSize(workSize uint16) {
 	wp.mux.Lock()
 	if wp.closed {
@@ -190,17 +187,17 @@ func (wp *workerPool) AdjustSize(workSize uint16) {
 	wp.mux.Unlock()
 }
 
-//暂停
+// Pause 暂停
 func (wp *workerPool) Pause() {
 	wp.AdjustSize(0)
 }
 
-//继续
+// Continue 继续
 func (wp *workerPool) Continue(num uint16) {
 	wp.AdjustSize(num)
 }
 
-//关闭协程池
+// Close 关闭协程池
 func (wp *workerPool) Close() {
 	wp.closeOnce.Do(func() {
 		wp.mux.Lock()
@@ -219,7 +216,7 @@ func (wp *workerPool) Close() {
 	})
 }
 
-//自动缩容
+// autoCutCap 自动缩容
 func (wp *workerPool) autoCutCap(interval time.Duration) {
 	go func() {
 		ticker := time.NewTicker(interval)
