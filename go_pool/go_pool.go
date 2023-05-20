@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/zhaomin1993/pool"
 	"github.com/zhaomin1993/pool/internal"
 )
 
@@ -71,7 +72,7 @@ type workerPool struct {
 }
 
 // NewWorkerPool 创建协程池
-func NewWorkerPool(workerNum, maxSize uint16, interval time.Duration) *workerPool {
+func NewWorkerPool(workerNum, maxSize uint16, interval time.Duration) pool.Pool {
 	wp := &workerPool{
 		maxSize:     maxSize,
 		workerNum:   workerNum,

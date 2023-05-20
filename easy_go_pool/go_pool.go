@@ -4,6 +4,7 @@ import (
 	"errors"
 	"sync"
 
+	"github.com/zhaomin1993/pool"
 	"github.com/zhaomin1993/pool/internal"
 )
 
@@ -62,7 +63,7 @@ type workerPool struct {
 }
 
 // NewWorkerPool 创建工厂
-func NewWorkerPool(workerNum, maxNum uint16) *workerPool {
+func NewWorkerPool(workerNum, maxNum uint16) pool.Pool {
 	if workerNum > maxNum {
 		workerNum = maxNum
 	}
